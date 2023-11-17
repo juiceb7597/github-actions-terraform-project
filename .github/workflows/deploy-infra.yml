@@ -1,0 +1,100 @@
+name: Terraform AWS Workflow
+on:
+  push:
+    branches: [ main ]
+    paths: 
+      - 'joo/terraform/**'
+      - '.github/workflows/deploy-infra.yml'
+  pull_request:
+    branches: [ main ]
+    paths: 
+      - 'joo/terraform/**'
+      - '.github/workflows/deploy-infra.yml'
+
+jobs:
+  tf_code_check: 
+    permissions: 
+      id-token: write
+      contents: read
+      pull-requests: write
+    environment: joo
+    defaults:
+      run:
+        working-directory: ./joo/terraform
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout tf code in runner environment 
+      uses: actions/checkout@v4
+
+    - name: Configure AWS Credentials Action For GitHub Actions
+      uses: aws-actions/configure-aws-credentials@v4
+      with: 
+        role-to-assume: ${{ secrets.AWS_ROLE }}
+        aws-region: ap-northeast-2
+        
+    - name: Setup Terraform CLI
+      uses: hashicorp/setup-terraform@v2
+      with:
+        terraform_version: "1.6.2"
+
+    - name: Terraform init
+      id: init
+      run: terraform init
+
+    - name: Terraform fmt
+      id: fmt
+      run: terraform fmt -check
+      continue-on-error: true
+
+    - name: Terraform validate
+      id: validate
+      run: terraform validate -no-color
+      
+    - name: Terraform plan 
+      id: plan
+      if: github.event_name == 'pull_request'
+      run: terraform plan
+
+    - name: PR Comment
+      uses: actions/github-script@v6
+      if: github.event_name == 'pull_request'
+      env:
+        PLAN: "terraform\n${{ steps.plan.outputs.stdout }}"
+      with: 
+        github-token: ${{ secrets.GITHUB_TOKEN }}
+        script: |
+         const output = `## 테라폼 구축 계획
+          #### terraform init ⚙️\`${{ steps.init.outcome }}\`
+          #### terraform fmt 🖌\`${{ steps.fmt.outcome }}\`
+          #### terraform validate 🤖\`${{ steps.validate.outcome }}\`
+          <details><summary>문법 검사 결과</summary>
+
+          \`\`\`\n
+          ${{ steps.validate.outputs.stdout }}
+          \`\`\`
+
+          </details>
+
+          #### terraform plan 📖\`${{ steps.plan.outcome }}\`
+
+          <details><summary>테라폼 구축 계획</summary>
+
+          \`\`\`\n
+          ${process.env.PLAN}
+          \`\`\`
+
+          </details>
+
+          **위의 내용으로 테라폼 배포를 요청합니다!**
+
+          *Pusher: @${{ github.actor }}, Action: \`${{ github.event_name }}\`, Working Directory: \`${{ env.tf_actions_working_dir }}\`, Workflow: \`${{ github.workflow }}\`*`;
+
+          github.rest.issues.createComment({
+            issue_number: context.issue.number,
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            body: output
+          })
+    - name: Terraform Apply
+      if: github.event_name == 'push'
+      run: terraform apply -auto-approve
