@@ -1,7 +1,5 @@
 # GitHub-Actions-Terraform-Project
 
----
-
 ## 시나리오
 
 ![workflow.png](https://i.esdrop.com/d/f/bPHSKWDXdc/wlfjgQ6DRf.png)
