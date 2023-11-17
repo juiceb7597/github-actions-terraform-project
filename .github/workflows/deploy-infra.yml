@@ -95,6 +95,6 @@ jobs:
             repo: context.repo.repo,
             body: output
           })
-    - name: Terraform Apply
+    - name: Terraform Apply 
       if: github.event_name == 'push'
       run: terraform apply -auto-approve
