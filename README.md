@@ -257,7 +257,7 @@ http {
 }
 ```
 
-- Userdata
+- User Data
 
 ```jsx
 # joo/terraform/modules/web/web-install.sh
